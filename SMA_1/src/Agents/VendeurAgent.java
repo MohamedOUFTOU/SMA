@@ -1,0 +1,86 @@
+package Agents;
+
+import jade.core.behaviours.CyclicBehaviour;
+import jade.core.behaviours.OneShotBehaviour;
+import jade.core.behaviours.ParallelBehaviour;
+import jade.domain.DFService;
+import jade.domain.FIPAAgentManagement.DFAgentDescription;
+import jade.domain.FIPAAgentManagement.ServiceDescription;
+import jade.domain.FIPAException;
+import jade.gui.GuiAgent;
+import jade.gui.GuiEvent;
+import jade.lang.acl.ACLMessage;
+
+import java.util.Random;
+
+public class VendeurAgent extends GuiAgent{
+    private VendeurGui gui;
+    @Override
+    protected void setup() {
+        if(getArguments().length == 1){
+            gui = (VendeurGui) getArguments()[0];
+            gui.agent = this;
+        }
+
+        ParallelBehaviour parallelBehaviour = new ParallelBehaviour();
+        addBehaviour(parallelBehaviour);
+        parallelBehaviour.addSubBehaviour(new OneShotBehaviour() {
+            @Override
+            public void action() {
+                DFAgentDescription dfAgentDescription = new DFAgentDescription();
+                dfAgentDescription.setName(getAID());
+                ServiceDescription  serviceDescription = new ServiceDescription();
+                serviceDescription.setType("books");
+                serviceDescription.setName("Vente");
+                dfAgentDescription.addServices(serviceDescription);
+                try {
+                    DFService.register(myAgent,dfAgentDescription);
+                } catch (FIPAException e) {
+                    e.printStackTrace();
+                }
+            }
+        });
+        parallelBehaviour.addSubBehaviour(new CyclicBehaviour() {
+            @Override
+            public void action() {
+                ACLMessage aclMessage = receive();
+                if (aclMessage != null){
+                    gui.logMessage(aclMessage);
+                    switch (aclMessage.getPerformative()){
+                        case ACLMessage.CFP:
+                            ACLMessage aclMessage1 = aclMessage.createReply();
+                            aclMessage1.setContent(String.valueOf(500 + new Random().nextInt(1000)));
+                            aclMessage1.setPerformative(ACLMessage.PROPOSE);
+                            send(aclMessage1);
+                            break;
+                        case ACLMessage.ACCEPT_PROPOSAL:
+                            ACLMessage aclMessage2 = aclMessage.createReply();
+                            aclMessage2.setPerformative(ACLMessage.AGREE);
+                            aclMessage2.setContent(aclMessage.getContent());
+                            send(aclMessage2);
+                            break;
+                        default:
+                            break;
+
+                    }
+                }else block();
+            }
+        });
+
+
+    }
+
+    @Override
+    protected void onGuiEvent(GuiEvent guiEvent) {
+
+    }
+
+    @Override
+    protected void takeDown() {
+        try {
+            DFService.deregister(this);
+        } catch (FIPAException e) {
+            e.printStackTrace();
+        }
+    }
+}
